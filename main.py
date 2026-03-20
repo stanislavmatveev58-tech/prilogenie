@@ -13,18 +13,13 @@ from kivy.uix.image import Image
 from kivy.uix.popup import Popup
 from kivy.uix.gridlayout import GridLayout
 from kivy.clock import Clock
-from kivy.core.window import Window
 from kivy.core.image import Image as CoreImage
 from kivy.graphics import Color, RoundedRectangle
 from kivy.utils import get_color_from_hex
 
 from data import *
 
-# Настройка окна для теста на ПК
-Window.size = (400, 700)
-
-
-# Вспомогательная функция для создания красивых кнопок
+# Вспомогательная функция для создания красивых кнопок с анимацией
 def create_button(text, on_press, color='#2196F3'):
     btn = Button(
         text=text,
@@ -33,33 +28,42 @@ def create_button(text, on_press, color='#2196F3'):
         background_normal='',
         background_color=get_color_from_hex(color),
         color=(1, 1, 1, 1),
-        font_size='16sp'
+        font_size='16sp',
+        halign='center',
+        valign='middle'
     )
-    btn.bind(on_press=on_press)
+    # Сохраняем исходный цвет
+    btn.original_color = get_color_from_hex(color)
+    # Анимация при нажатии
+    def on_press_anim(instance):
+        instance.background_color = [c * 0.7 for c in instance.original_color]
+        instance.font_size = '15sp'
+    def on_release_anim(instance):
+        instance.background_color = instance.original_color
+        instance.font_size = '16sp'
+        # Вызываем переданный обработчик
+        on_press(instance)
+    btn.bind(on_press=on_press_anim, on_release=on_release_anim)
     # Скругление углов
     btn.canvas.before.add(Color(*get_color_from_hex(color)))
     btn.canvas.before.add(RoundedRectangle(pos=btn.pos, size=btn.size, radius=[10]))
     return btn
 
-
 class MainScreen(Screen):
-    """Главный экран с динамической навигацией по меню"""
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.name = 'main'
-        self.menu_stack = []  # для навигации назад
+        self.menu_stack = []
         self.current_menu = main_menu
         self.current_title = "ЕГЭ Математика"
         self.build_ui()
 
     def build_ui(self):
         layout = BoxLayout(orientation='vertical')
-
         # Верхняя панель
         top_bar = BoxLayout(size_hint_y=0.1, padding=[10, 5])
         with top_bar.canvas.before:
-            Color(0.2, 0.6, 0.2, 1)  # зеленый фон
+            Color(0.2, 0.6, 0.2, 1)
             self.bar_rect = RoundedRectangle(pos=top_bar.pos, size=top_bar.size, radius=[0])
         top_bar.bind(pos=self.update_bar_rect, size=self.update_bar_rect)
 
@@ -82,12 +86,10 @@ class MainScreen(Screen):
             font_size='20sp',
             bold=True
         )
-
         top_bar.add_widget(self.back_btn)
         top_bar.add_widget(self.title_label)
         layout.add_widget(top_bar)
 
-        # Область прокрутки для кнопок меню
         scroll = ScrollView()
         self.menu_layout = GridLayout(cols=1, spacing=10, size_hint_y=None, padding=[20, 10])
         self.menu_layout.bind(minimum_height=self.menu_layout.setter('height'))
@@ -102,16 +104,12 @@ class MainScreen(Screen):
         self.bar_rect.size = instance.size
 
     def show_menu(self, menu_items, title, stack=True):
-        """Отображает список кнопок меню"""
         self.current_title = title
         self.title_label.text = title
         self.menu_layout.clear_widgets()
-
         for item in menu_items:
             btn = create_button(item, self.on_menu_item, self.get_color_for_item(item))
             self.menu_layout.add_widget(btn)
-
-        # Обновление кнопки назад
         if stack and menu_items != main_menu:
             self.menu_stack.append(menu_items)
             self.back_btn.opacity = 1
@@ -122,69 +120,68 @@ class MainScreen(Screen):
             self.back_btn.disabled = True
 
     def get_color_for_item(self, item):
-        """Возвращает цвет кнопки в зависимости от раздела"""
-        if item.startswith('🧮'):
-            return '#4CAF50'  # зеленый
-        elif item.startswith('📐'):
-            return '#2196F3'  # синий
-        elif item.startswith('🧊'):
-            return '#00BCD4'  # голубой
-        elif item.startswith('📐') and 'Тригонометрия' in item:
-            return '#FF9800'  # оранжевый
-        elif item.startswith('🎲'):
-            return '#9C27B0'  # фиолетовый
-        elif item.startswith('📈'):
-            return '#F44336'  # красный
-        elif item.startswith('📊'):
-            return '#3F51B5'  # индиго
-        elif item.startswith('📋'):
-            return '#795548'  # коричневый
-        elif item.startswith('📝'):
-            return '#E91E63'  # розовый
-        elif item.startswith('💬'):
-            return '#607D8B'  # серо-синий
-        elif 'Вернуться' in item:
-            return '#9E9E9E'  # серый
+        if item == "Алгебра":
+            return '#4CAF50'
+        elif item == "Планиметрия":
+            return '#2196F3'
+        elif item == "Стереометрия":
+            return '#00BCD4'
+        elif item == "Тригонометрия":
+            return '#FF9800'
+        elif item == "Вероятность":
+            return '#9C27B0'
+        elif item == "Производные":
+            return '#F44336'
+        elif item == "Графики":
+            return '#3F51B5'
+        elif item == "Задания ЕГЭ":
+            return '#795548'
+        elif item == "Тест (1-12)":
+            return '#E91E63'
+        elif item == "Обратная связь":
+            return '#607D8B'
+        elif "Вернуться" in item:
+            return '#9E9E9E'
         else:
             return '#2196F3'
 
     def on_menu_item(self, instance):
         text = instance.text
 
-        # Обработка верхнего уровня
+        # Верхний уровень
         if self.current_menu == main_menu:
-            if text == "🧮 Алгебра":
+            if text == "Алгебра":
                 self.current_menu = algebra_menu
                 self.show_menu(algebra_menu, "Алгебра")
-            elif text == "📐 Планиметрия":
+            elif text == "Планиметрия":
                 self.current_menu = planimetry_menu
                 self.show_menu(planimetry_menu, "Планиметрия")
-            elif text == "🧊 Стереометрия":
+            elif text == "Стереометрия":
                 self.current_menu = stereometry_menu
                 self.show_menu(stereometry_menu, "Стереометрия")
-            elif text == "📐 Тригонометрия":
+            elif text == "Тригонометрия":
                 self.current_menu = trigonometry_menu
                 self.show_menu(trigonometry_menu, "Тригонометрия")
-            elif text == "🎲 Вероятность":
+            elif text == "Вероятность":
                 self.current_menu = probability_menu
                 self.show_menu(probability_menu, "Вероятность")
-            elif text == "📈 Производные":
+            elif text == "Производные":
                 self.current_menu = derivatives_menu
                 self.show_menu(derivatives_menu, "Производные")
-            elif text == "📊 Графики":
+            elif text == "Графики":
                 self.current_menu = graphs_menu
                 self.show_menu(graphs_menu, "Графики")
-            elif text == "📋 Задания ЕГЭ":
+            elif text == "Задания ЕГЭ":
                 self.current_menu = ege_tasks_menu
                 self.show_menu(ege_tasks_menu, "Задания ЕГЭ")
-            elif text == "📝 Тест (1-12)":
+            elif text == "Тест (1-12)":
                 self.manager.get_screen('test').start_test()
                 self.manager.current = 'test'
-            elif text == "💬 Обратная связь":
+            elif text == "Обратная связь":
                 self.current_menu = feedback_menu
                 self.show_menu(feedback_menu, "Обратная связь")
 
-        # Алгебра и подменю
+        # Алгебра и её подменю
         elif self.current_menu == algebra_menu:
             if text == "Прогрессия":
                 self.current_menu = progressiya_menu
@@ -212,7 +209,7 @@ class MainScreen(Screen):
                 self.current_menu = algebra_menu
                 self.show_menu(algebra_menu, "Алгебра")
 
-        # Планиметрия и подменю
+        # Планиметрия и её подменю
         elif self.current_menu == planimetry_menu:
             if text == "Треугольник":
                 self.current_menu = treugolnik_menu
@@ -306,32 +303,79 @@ class MainScreen(Screen):
                 self.show_menu(main_menu, "ЕГЭ Математика")
 
     def show_formula(self, name):
-        """Показывает экран с формулой"""
         screen = self.manager.get_screen('formula')
         screen.show_formula(name, formulas.get(name, ''))
         self.manager.current = 'formula'
 
     def go_back(self, instance):
-        """Возврат к предыдущему меню"""
-        if self.menu_stack:
-            self.menu_stack.pop()
-            if self.menu_stack:
-                prev_menu = self.menu_stack[-1]
-            else:
-                prev_menu = main_menu
-                self.back_btn.opacity = 0
-                self.back_btn.disabled = True
-
-            if prev_menu == main_menu:
-                self.current_menu = main_menu
-                self.show_menu(main_menu, "ЕГЭ Математика", stack=False)
-            elif prev_menu == algebra_menu:
-                self.current_menu = algebra_menu
-                self.show_menu(algebra_menu, "Алгебра", stack=False)
-            elif prev_menu == planimetry_menu:
-                self.current_menu = planimetry_menu
-                self.show_menu(planimetry_menu, "Планиметрия", stack=False)
-            # ... можно добавить остальные, но общий механизм уже работает
+        if not self.menu_stack:
+            return
+        self.menu_stack.pop()
+        if not self.menu_stack:
+            self.current_menu = main_menu
+            self.show_menu(main_menu, "ЕГЭ Математика", stack=False)
+            return
+        prev_menu = self.menu_stack[-1]
+        if prev_menu == main_menu:
+            self.current_menu = main_menu
+            self.show_menu(main_menu, "ЕГЭ Математика", stack=False)
+        elif prev_menu == algebra_menu:
+            self.current_menu = algebra_menu
+            self.show_menu(algebra_menu, "Алгебра", stack=False)
+        elif prev_menu == planimetry_menu:
+            self.current_menu = planimetry_menu
+            self.show_menu(planimetry_menu, "Планиметрия", stack=False)
+        elif prev_menu == stereometry_menu:
+            self.current_menu = stereometry_menu
+            self.show_menu(stereometry_menu, "Стереометрия", stack=False)
+        elif prev_menu == trigonometry_menu:
+            self.current_menu = trigonometry_menu
+            self.show_menu(trigonometry_menu, "Тригонометрия", stack=False)
+        elif prev_menu == probability_menu:
+            self.current_menu = probability_menu
+            self.show_menu(probability_menu, "Вероятность", stack=False)
+        elif prev_menu == derivatives_menu:
+            self.current_menu = derivatives_menu
+            self.show_menu(derivatives_menu, "Производные", stack=False)
+        elif prev_menu == graphs_menu:
+            self.current_menu = graphs_menu
+            self.show_menu(graphs_menu, "Графики", stack=False)
+        elif prev_menu == ege_tasks_menu:
+            self.current_menu = ege_tasks_menu
+            self.show_menu(ege_tasks_menu, "Задания ЕГЭ", stack=False)
+        elif prev_menu == feedback_menu:
+            self.current_menu = feedback_menu
+            self.show_menu(feedback_menu, "Обратная связь", stack=False)
+        elif prev_menu == progressiya_menu:
+            self.current_menu = progressiya_menu
+            self.show_menu(progressiya_menu, "Прогрессия", stack=False)
+        elif prev_menu == kvadr_ur_menu:
+            self.current_menu = kvadr_ur_menu
+            self.show_menu(kvadr_ur_menu, "Квадратные уравнения", stack=False)
+        elif prev_menu == treugolnik_menu:
+            self.current_menu = treugolnik_menu
+            self.show_menu(treugolnik_menu, "Треугольник", stack=False)
+        elif prev_menu == rect_treug_menu:
+            self.current_menu = rect_treug_menu
+            self.show_menu(rect_treug_menu, "Прямоугольный треугольник", stack=False)
+        elif prev_menu == ravnostor_treug_menu:
+            self.current_menu = ravnostor_treug_menu
+            self.show_menu(ravnostor_treug_menu, "Равносторонний треугольник", stack=False)
+        elif prev_menu == shestiugolnik_menu:
+            self.current_menu = shestiugolnik_menu
+            self.show_menu(shestiugolnik_menu, "Шестиугольник", stack=False)
+        elif prev_menu == trapeciya_menu:
+            self.current_menu = trapeciya_menu
+            self.show_menu(trapeciya_menu, "Трапеция", stack=False)
+        elif prev_menu == romb_menu:
+            self.current_menu = romb_menu
+            self.show_menu(romb_menu, "Ромб", stack=False)
+        elif prev_menu == okruzhnost_menu:
+            self.current_menu = okruzhnost_menu
+            self.show_menu(okruzhnost_menu, "Окружность", stack=False)
+        else:
+            self.current_menu = main_menu
+            self.show_menu(main_menu, "ЕГЭ Математика", stack=False)
 
     def show_popup(self, message):
         popup = Popup(title='Информация',
@@ -339,10 +383,7 @@ class MainScreen(Screen):
                       size_hint=(0.8, 0.4))
         popup.open()
 
-
 class FormulaScreen(Screen):
-    """Экран отображения формулы с картинкой"""
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.name = 'formula'
@@ -350,8 +391,6 @@ class FormulaScreen(Screen):
 
     def build_ui(self):
         layout = BoxLayout(orientation='vertical')
-
-        # Кнопка назад
         back_btn = Button(
             text='← Назад',
             size_hint_y=0.1,
@@ -363,7 +402,6 @@ class FormulaScreen(Screen):
         back_btn.bind(on_press=self.go_back)
         layout.add_widget(back_btn)
 
-        # ScrollView для контента
         scroll = ScrollView()
         content = BoxLayout(orientation='vertical', size_hint_y=None, spacing=10, padding=10)
         content.bind(minimum_height=content.setter('height'))
@@ -412,10 +450,7 @@ class FormulaScreen(Screen):
     def go_back(self, instance):
         self.manager.current = 'main'
 
-
 class TestScreen(Screen):
-    """Экран тестирования"""
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.name = 'test'
@@ -433,8 +468,6 @@ class TestScreen(Screen):
 
     def build_ui(self):
         layout = BoxLayout(orientation='vertical')
-
-        # Верхняя панель
         top_bar = BoxLayout(size_hint_y=0.1, padding=[10, 5])
         with top_bar.canvas.before:
             Color(0.2, 0.6, 0.2, 1)
@@ -464,7 +497,6 @@ class TestScreen(Screen):
         top_bar.add_widget(self.progress_label)
         layout.add_widget(top_bar)
 
-        # Область вопроса
         scroll = ScrollView()
         self.content = BoxLayout(orientation='vertical', size_hint_y=None, spacing=10, padding=15)
         self.content.bind(minimum_height=self.content.setter('height'))
@@ -535,9 +567,8 @@ class TestScreen(Screen):
     def show_question(self):
         if self.current_question < len(self.test_data):
             q = self.test_data[self.current_question]
-            self.progress_label.text = f"{self.current_question + 1}/{len(self.test_data)}"
+            self.progress_label.text = f"{self.current_question+1}/{len(self.test_data)}"
             self.question_label.text = q['question']
-
             if q.get('photo'):
                 try:
                     response = requests.get(q['photo'], timeout=5)
@@ -551,7 +582,6 @@ class TestScreen(Screen):
                     self.question_image.height = 0
             else:
                 self.question_image.height = 0
-
             self.answer_input.text = ''
         else:
             self.finish_test()
@@ -562,7 +592,6 @@ class TestScreen(Screen):
         answer = self.answer_input.text.strip()
         q = self.test_data[self.current_question]
         correct = answer.lower() == q['correct_answer'].lower()
-
         self.answers.append({
             'question': q['question'],
             'user_answer': answer,
@@ -570,14 +599,12 @@ class TestScreen(Screen):
             'correct_answer': q['correct_answer'],
             'solution': q['solution']
         })
-
         if correct:
             self.correct_answers += 1
             self.show_popup("Правильно!", "green")
         else:
             self.wrong_questions.append(self.current_question)
             self.show_popup(f"Неверно!\nПравильный ответ: {q['correct_answer']}\n\n{q['solution']}", "red")
-
         self.current_question += 1
         Clock.schedule_once(lambda dt: self.show_question(), 1.5)
 
@@ -600,7 +627,6 @@ class TestScreen(Screen):
         self.in_test = False
         total = len(self.test_data)
         correct = self.correct_answers
-
         if correct == total:
             result = "ИДЕАЛЬНО! Все ответы верны!"
         elif correct >= total * 0.8:
@@ -611,18 +637,13 @@ class TestScreen(Screen):
             result = f"Неплохо! {correct}/{total}"
         else:
             result = f"{correct}/{total}. Нужно подтянуть теорию!"
-
-        # Показываем результат
         content = BoxLayout(orientation='vertical', spacing=10, padding=10)
         content.add_widget(Label(text=result, halign='center', size_hint_y=None, height=100))
-
         if self.wrong_questions:
             retry_btn = create_button('Повторить ошибки', lambda x: self.retry_test(), '#FF9800')
             content.add_widget(retry_btn)
-
         ok_btn = create_button('В меню', lambda x: self.back_to_menu(), '#4CAF50')
         content.add_widget(ok_btn)
-
         popup = Popup(title='Результат', content=content, size_hint=(0.8, 0.6))
         popup.open()
 
@@ -662,7 +683,6 @@ class TestScreen(Screen):
                       size_hint=(0.8, 0.4))
         popup.open()
 
-
 class MathApp(App):
     def build(self):
         sm = ScreenManager()
@@ -670,7 +690,6 @@ class MathApp(App):
         sm.add_widget(FormulaScreen())
         sm.add_widget(TestScreen())
         return sm
-
 
 if __name__ == '__main__':
     MathApp().run()
